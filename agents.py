@@ -1,5 +1,5 @@
 import numpy as np
-import random
+import random, os
 from collections import namedtuple, deque
 
 import torch
@@ -21,7 +21,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 class Agent():
     """Interacts with and learns from the environment"""
     
-    def __init__(self, state_size, action_size, seed, nn_type):
+    def __init__(self, state_size, action_size, seed, nn_type, load_agent = False):
         """Intialize an Agent object
         
         Params
@@ -34,6 +34,7 @@ class Agent():
         self.state_size = state_size
         self.action_size = action_size
         self.seed = random.seed(seed)
+        self.nn_type = nn_type
         valid_nn = False
 
         if(nn_type == constants.VANILLA_DQN):
@@ -53,6 +54,9 @@ class Agent():
 
         if(valid_nn == False):
             print("ERROR!!!! Invalid NN Architecture")
+
+        if(load_agent != False):
+            self.load_agent(load_agent)
            
 
         self.optimizer = optim.Adam(self.qnetwork_local.parameters(), lr=LR)
@@ -123,6 +127,7 @@ class Agent():
         
         # ------------------- update target network ------------------- #
         self.soft_update(self.qnetwork_local, self.qnetwork_target, TAU)
+        self.save_agent("INCOMPLETE - " + self.nn_type)
         
     def soft_update(self, local_model, target_model, tau):
         """Soft update model parameters
@@ -138,6 +143,21 @@ class Agent():
         for target_param, local_param in zip(target_model.parameters(), local_model.parameters()):
             target_param.data.copy_(tau*local_param.data + (1.0-tau)*target_param.data)
 
+    # Save the checkpoint 
+    def save_agent(self, fileName):
+        checkpoint = {'state_dict': self.qnetwork_local.state_dict()}
+        if not os.path.exists("checkpoints"):
+            os.makedirs("checkpoints")
+        fileName = 'checkpoints\\' + fileName + '.pth'
+        # print("\nSaving checkpoint\n")
+        torch.save(checkpoint, fileName)
+
+    # Loads a pre-trained model from a checkpoint
+    def load_agent(self, fileName):
+        print("\nLoading checkpoint\n")
+        filepath = 'checkpoints\\' + fileName + '.pth'
+        checkpoint = torch.load(filepath, map_location=lambda storage, loc: storage)
+        self.qnetwork_local.load_state_dict(checkpoint['state_dict'])
 
 class ReplayBuffer:
     """Fixed size buffer to store experience tuples"""
