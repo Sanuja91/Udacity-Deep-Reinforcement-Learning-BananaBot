@@ -21,7 +21,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 class Agent():
     """Interacts with and learns from the environment"""
     
-    def __init__(self, state_size, action_size, seed, nn_type, load_agent = False):
+    def __init__(self, state_size, action_size, seed, nn_type, load_agent = False, doubleDQN = False):
         """Intialize an Agent object
         
         Params
@@ -35,6 +35,7 @@ class Agent():
         self.action_size = action_size
         self.seed = random.seed(seed)
         self.nn_type = nn_type
+        self.doubleDQN = doubleDQN
         valid_nn = False
 
         if(nn_type == constants.VANILLA_DQN):
@@ -92,6 +93,15 @@ class Agent():
         with torch.no_grad():
             action_values = self.qnetwork_local(state)
         self.qnetwork_local.train()
+
+        # If in double DQN mode, then take average action from two networks
+        if(self.doubleDQN):
+            self.qnetwork_target.eval()
+            with torch.no_grad():
+                action_values += self.qnetwork_target(state)
+                action_values /= 2
+            self.qnetwork_target.train()
+
         
         # Epsilon greedy action selection
         if random.random() > eps:
