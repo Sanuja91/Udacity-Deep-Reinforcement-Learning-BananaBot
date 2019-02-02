@@ -28,8 +28,8 @@ def dqn(agent, env, brain_name, n_episodes=2000, eps_start=1.0, eps_end=0.01, ep
             next_state = env_info.vector_observations[0]   # get the next state
             reward = env_info.rewards[0]                   # get the reward
             done = env_info.local_done[0]                  # see if episode has finished
-            
-            agent.step(state, action, reward, next_state, done)
+                  
+            agent.step(state, action, reward, next_state, done)    # TODO add priority here
             state = next_state
             score += reward
             count += 1
@@ -42,7 +42,7 @@ def dqn(agent, env, brain_name, n_episodes=2000, eps_start=1.0, eps_end=0.01, ep
         print('\rEpisode {}\tAverage Score: {:.2f}'.format(i_episode, np.mean(scores_window)), end="")
         if i_episode % 100 == 0:
             print('\rEpisode {}\tAverage Score: {:.2f}'.format(i_episode, np.mean(scores_window)))
-        if np.mean(scores_window)>=200.0:
+        if np.mean(scores_window)>=13:
             print('\nEnvironment solved in {:d} episodes!\tAverage Score: {:.2f}'.format(i_episode-100, np.mean(scores_window)))
             agent.save_agent("COMPLETE - " + agent.nn_type)
             # torch.save(agent.qnetwork_local.state_dict(), 'checkpoint.pth')

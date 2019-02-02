@@ -21,7 +21,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 class Agent():
     """Interacts with and learns from the environment"""
     
-    def __init__(self, state_size, action_size, seed, nn_type, load_agent = False, doubleDQN = False):
+    def __init__(self, state_size, action_size, seed, nn_type, load_agent = False, doubleDQN = False, PER = False):
         """Intialize an Agent object
         
         Params
@@ -29,6 +29,10 @@ class Agent():
         state_size(int): dimension of each state
         action_size(int): dimension of each action
         seed(int): random seed
+        nn_type(string): neural network name
+        load_agent(boolean): boolean to load agent or not
+        doubleDQN(boolean): boolean to use double DQN or not
+        PER(boolean): boolean to use prioritized experience replay or not
         """
         
         self.state_size = state_size
@@ -36,18 +40,27 @@ class Agent():
         self.seed = random.seed(seed)
         self.nn_type = nn_type
         self.doubleDQN = doubleDQN
+        self.PER = PER
         valid_nn = False
 
         if(nn_type == constants.VANILLA_DQN):
             valid_nn = True
-            print("\nLoading Vanilla DQN\n")
+            
+            if (doubleDQN):
+                print("\nLoading Double Vanilla DQN\n")
+            else:
+                print("\nLoading Vanilla DQN\n")
            
             # Vanilla DQN Network
             self.qnetwork_local = brains.VanillaDQN(state_size, action_size, seed).to(device)
             self.qnetwork_target = brains.VanillaDQN(state_size, action_size, seed).to(device)
         elif(nn_type == constants.DUELING_DQN):
             valid_nn = True
-            print("\nLoading Dueling DQN\n")
+
+            if (doubleDQN):
+                print("\nLoading Double Dueling DQN\n")
+            else:
+                print("\nLoading Dueling DQN\n")
 
             # Dueling DQN Network
             self.qnetwork_local = brains.DuelingDQN(state_size, action_size, seed).to(device)
@@ -56,14 +69,20 @@ class Agent():
         if(valid_nn == False):
             print("ERROR!!!! Invalid NN Architecture")
 
-        if(load_agent != False):
-            self.load_agent(load_agent)
+        if(doubleDQN):
+            self.nn_type = constants.DOUBLE + " " + self.nn_type
+            
+        if(PER):
+            self.nn_type = constants.PER + " " + self.nn_type
+
+        if(load_agent):
+            self.load_agent(self.nn_type, True) # Loads the agent that completed the challenge
            
 
         self.optimizer = optim.Adam(self.qnetwork_local.parameters(), lr=LR)
 
         # Replay memory
-        self.memory = ReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE, seed)
+        self.memory = ReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE, seed, self.PER)
         # Initialize time step (for updating every UPDATE_EVERY steps)
         self.t_step = 0
         
@@ -137,7 +156,7 @@ class Agent():
         
         # ------------------- update target network ------------------- #
         self.soft_update(self.qnetwork_local, self.qnetwork_target, TAU)
-        self.save_agent("INCOMPLETE - " + self.nn_type)
+        self.save_agent(self.nn_type)
         
     def soft_update(self, local_model, target_model, tau):
         """Soft update model parameters
@@ -163,16 +182,22 @@ class Agent():
         torch.save(checkpoint, fileName)
 
     # Loads a pre-trained model from a checkpoint
-    def load_agent(self, fileName):
+    def load_agent(self, fileName, complete):
         print("\nLoading checkpoint\n")
+        if (complete):
+            fileName = "COMPLETE - " + fileName
         filepath = 'checkpoints\\' + fileName + '.pth'
-        checkpoint = torch.load(filepath, map_location=lambda storage, loc: storage)
-        self.qnetwork_local.load_state_dict(checkpoint['state_dict'])
+
+        if os.path.exists(filepath):
+            checkpoint = torch.load(filepath, map_location=lambda storage, loc: storage)
+            self.qnetwork_local.load_state_dict(checkpoint['state_dict'])
+        else:
+            print("\nCannot find {} checkpoint... Proceeding to create fresh neural network\n".format(fileName))
 
 class ReplayBuffer:
     """Fixed size buffer to store experience tuples"""
     
-    def __init__(self, action_size, buffer_size, batch_size, seed):
+    def __init__(self, action_size, buffer_size, batch_size, seed, PER):
         """Initialize a ReplayBuffer object
         
         Params
@@ -188,9 +213,15 @@ class ReplayBuffer:
         self.batch_size = batch_size
         self.experience = namedtuple("Experience", field_names=["state", "action", "reward", "next_state", "done"])
         self.seed = random.seed(seed)
+        self.PER = PER
         
     def add(self, state, action, reward, next_state, done):
         """Add a new experience to memory"""
+
+        # if (self.PER):
+        #     e = self.experience(state, action, reward, next_state, done, priority)
+        # else:
+        #     e = self.experience(state, action, reward, next_state, done, None)
         e = self.experience(state, action, reward, next_state, done)
         self.memory.append(e)
         
@@ -203,7 +234,11 @@ class ReplayBuffer:
         rewards = torch.from_numpy(np.vstack([e.reward for e in experiences if e is not None])).float().to(device)
         next_states = torch.from_numpy(np.vstack([e.next_state for e in experiences if e is not None])).float().to(device)
         dones = torch.from_numpy(np.vstack([e.done for e in experiences if e is not None]).astype(np.uint8)).float().to(device)
-  
+
+        # if (self.PER):
+        #     priorities = torch.from_numpy(np.vstack([e.priority for e in experiences if e is not None])).float().to(device)
+        #     return (states, actions, rewards, next_states, dones, priorities)
+
         return (states, actions, rewards, next_states, dones)
 
     def __len__(self):
