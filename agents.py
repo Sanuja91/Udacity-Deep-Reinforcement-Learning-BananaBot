@@ -43,7 +43,14 @@ class Agent():
             # Vanilla DQN Network
             self.qnetwork_local = brains.VanillaDQN(state_size, action_size, seed).to(device)
             self.qnetwork_target = brains.VanillaDQN(state_size, action_size, seed).to(device)
-            
+        elif(nn_type == constants.DUELING_DQN):
+            valid_nn = True
+            print("\nLoading Dueling DQN\n")
+
+            # Dueling DQN Network
+            self.qnetwork_local = brains.DuelingDQN(state_size, action_size, seed).to(device)
+            self.qnetwork_target = brains.DuelingDQN(state_size, action_size, seed).to(device)
+
         if(valid_nn == False):
             print("ERROR!!!! Invalid NN Architecture")
            
