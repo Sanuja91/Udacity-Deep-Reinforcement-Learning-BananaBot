@@ -29,7 +29,7 @@ def dqn(agent, env, brain_name, n_episodes=2000, eps_start=1.0, eps_end=0.01, ep
             reward = env_info.rewards[0]                   # get the reward
             done = env_info.local_done[0]                  # see if episode has finished
                   
-            agent.step(state, action, reward, next_state, done)    # TODO add priority here
+            agent.step(state, action, reward, next_state, done)  
             state = next_state
             score += reward
             count += 1

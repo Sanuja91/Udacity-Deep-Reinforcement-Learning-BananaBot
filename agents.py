@@ -90,8 +90,11 @@ class Agent():
         self.t_step = 0
         
     def step(self, state, action, reward, next_state, done):
+
+        # Calulate TD Error for priority
+        # priority = self.calculate_loss(torch.Tensor(state), torch.Tensor(action), torch.Tensor(reward), torch.Tensor(next_state), torch.Tensor(done), GAMMA, cal_priority = True)
         # Save experience in replay memory
-        self.memory.add(state, action, reward, next_state, done)
+        self.memory.add(state, action, reward, next_state, done, None)
         
         # Learn every UPDATE_EVERY time steps
         self.t_step = (self.t_step + 1) % UPDATE_EVERY
@@ -130,6 +133,42 @@ class Agent():
             return np.argmax(action_values.cpu().data.numpy())
         else:
             return random.choice(np.arange(self.action_size))
+
+    def calculate_loss(self, states, actions, rewards, next_states, dones, gamma, cal_priority):
+        """Calulates the loss
+            cal_priority (boolean): Calculates priority boolean, if True use torch.no_grad
+        """
+        print("States {} Actions {} Rewards {} Next States {} Dones {}".format(states.shape, actions.shape, rewards.shape, next_states.shape, dones.shape))
+
+        if(cal_priority):
+            self.qnetwork_target.eval()
+            self.qnetwork_local.eval()
+            with torch.no_grad():
+                # Get expected Q values from local model
+                Q_expected = self.qnetwork_local(states).gather(1, actions)
+                # Get max predicted Q values (for next states) from target model
+                Q_targets_next = self.qnetwork_target(next_states).detach().max(1)[0].unsqueeze(1)
+
+            self.qnetwork_target.train()
+            self.qnetwork_local.train()
+
+            # Compute Q targets for current states
+            Q_targets = rewards + (gamma * Q_targets_next * (1 - dones))
+
+        else:
+            # Get max predicted Q values (for next states) from target model
+            Q_targets_next = self.qnetwork_target(next_states).detach().max(1)[0].unsqueeze(1)
+            # Compute Q targets for current states
+            Q_targets = rewards + (gamma * Q_targets_next * (1 - dones))
+
+            # Get expected Q values from local model
+            Q_expected = self.qnetwork_local(states).gather(1, actions)
+        
+        # Compute loss
+        diff = Q_expected - Q_targets
+        # print("############## DIFF ", diff.detach().squeeze().abs().cpu().numpy().tolist())
+        loss = F.mse_loss(Q_expected, Q_targets)
+        return loss
         
     def learn(self, experiences, gamma):
         """Update value parameters using given batch of experience tuples
@@ -141,16 +180,8 @@ class Agent():
         """
         states, actions, rewards, next_states, dones = experiences
         
-        # Get max predicted Q values (for next states) from target model
-        Q_targets_next = self.qnetwork_target(next_states).detach().max(1)[0].unsqueeze(1)
-        # Compute Q targets for current states
-        Q_targets = rewards + (gamma * Q_targets_next * (1 - dones))
-        
-        # Get expected Q values from local model
-        Q_expected = self.qnetwork_local(states).gather(1, actions)
-        
         # Compute loss
-        loss = F.mse_loss(Q_expected, Q_targets)
+        loss = self.calculate_loss(states, actions, rewards, next_states, dones, gamma, cal_priority = False)
         
         # Minimize the loss
         self.optimizer.zero_grad()
@@ -214,33 +245,37 @@ class ReplayBuffer:
         self.action_size = action_size
         self.memory = deque(maxlen=buffer_size)
         self.batch_size = batch_size
-        self.experience = namedtuple("Experience", field_names=["state", "action", "reward", "next_state", "done"])
+        self.experience = namedtuple("Experience", field_names=["state", "action", "reward", "next_state", "done", "priority", "index"])
         self.seed = random.seed(seed)
+        self.last_index = 0
         self.PER = PER
         
-    def add(self, state, action, reward, next_state, done):
+    def add(self, state, action, reward, next_state, done, priority):
         """Add a new experience to memory"""
-
-        # if (self.PER):
-        #     e = self.experience(state, action, reward, next_state, done, priority)
-        # else:
-        #     e = self.experience(state, action, reward, next_state, done, None)
-        e = self.experience(state, action, reward, next_state, done)
+        new_index = self.last_index + 1
+        if (self.PER):
+            e = self.experience(state, action, reward, next_state, done, priority)
+        else:
+            e = self.experience(state, action, reward, next_state, done, 0)
+        # e = self.experience(state, action, reward, next_state, done)
         self.memory.append(e)
+        self.last_index = new_index
+        
         
     def sample(self):
         """Randomly sample a batch of experiences from memory"""
         experiences = random.sample(self.memory, k=self.batch_size)
         
+        print("############## EXPERIENCES ", experiences)
         states = torch.from_numpy(np.vstack([e.state for e in experiences if e is not None])).float().to(device)
         actions = torch.from_numpy(np.vstack([e.action for e in experiences if e is not None])).long().to(device)
         rewards = torch.from_numpy(np.vstack([e.reward for e in experiences if e is not None])).float().to(device)
         next_states = torch.from_numpy(np.vstack([e.next_state for e in experiences if e is not None])).float().to(device)
         dones = torch.from_numpy(np.vstack([e.done for e in experiences if e is not None]).astype(np.uint8)).float().to(device)
 
-        # if (self.PER):
-        #     priorities = torch.from_numpy(np.vstack([e.priority for e in experiences if e is not None])).float().to(device)
-        #     return (states, actions, rewards, next_states, dones, priorities)
+        if (self.PER):
+            priorities = torch.from_numpy(np.vstack([e.priority for e in experiences if e is not None])).float().to(device)
+            return (states, actions, rewards, next_states, dones, priorities)
 
         return (states, actions, rewards, next_states, dones)
 
