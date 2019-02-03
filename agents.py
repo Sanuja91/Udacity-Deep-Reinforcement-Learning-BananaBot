@@ -5,6 +5,7 @@ from collections import namedtuple, deque
 import torch
 import torch.nn.functional as F
 import torch.optim as optim
+from torchsummary import summary
 
 import brains, constants
 
@@ -21,7 +22,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 class Agent():
     """Interacts with and learns from the environment"""
     
-    def __init__(self, state_size, action_size, seed, nn_type, load_agent = False, doubleDQN = False, PER = False):
+    def __init__(self, env_info, state_size, action_size, seed, nn_type, load_agent = False, doubleDQN = False, PER = False):
         """Intialize an Agent object
         
         Params
@@ -77,6 +78,8 @@ class Agent():
 
         if(load_agent):
             self.load_agent(self.nn_type, True) # Loads the agent that completed the challenge
+
+        summary(self.qnetwork_local, input_size = env_info.vector_observations[0].shape)
            
 
         self.optimizer = optim.Adam(self.qnetwork_local.parameters(), lr=LR)
