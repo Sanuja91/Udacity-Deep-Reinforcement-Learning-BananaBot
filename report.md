@@ -56,6 +56,11 @@ Four DQN algorithms were implemented and trained.
 - Ending epsilion: 0.01
 - Epsilion decay rate: 0.999
 
+## Why DQN works
+A Deep Q Network learns by using a neural network to approximate the action value function which is inturned used to achieve the optimal policy which guides the agent to perform the optimal action in a given state to earn the maximum reward possible at that state. 
+
+The technology works really well in this scenario as this is an episodic task with a limited state and action space. Since the possibile state-action pairs is relatively low in comparison to more complex problems, the agent can easily explore the given environment during the exploration phase while learning the potential rewards attained for prospective actions and exploit this knowledge later on while it learns to get better at maximizing the potential rewards that it can earn.
+
 
 ## Plot of Rewards
 ### Vanilla DQN
